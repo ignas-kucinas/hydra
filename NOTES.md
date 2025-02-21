@@ -1,4 +1,3 @@
-
 Table containing all DB tables (excluding migrations) for hydra service and number of references it has to and it is reference by other DB tables
 
 
