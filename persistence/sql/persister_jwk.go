@@ -6,9 +6,9 @@ package sql
 import (
 	"context"
 	"encoding/json"
-
 	"github.com/go-jose/go-jose/v3"
 	"github.com/gobuffalo/pop/v6"
+	"github.com/ory/hydra/v2/oauth2/trust"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -186,7 +186,15 @@ func (p *Persister) DeleteKey(ctx context.Context, set, kid string) (err error) 
 			attribute.String("kid", kid)))
 	defer otelx.End(span, &err)
 
-	err = p.QueryWithNetwork(ctx).Where("sid=? AND kid=?", set, kid).Delete(&jwk.SQLData{})
+	err = p.Transaction(ctx, func(ctx context.Context, c *pop.Connection) error {
+		// Remove all child trusted_jwt_bearer_issuers rows first
+		err = p.QueryWithNetwork(ctx).Where("key_set=? AND key_id=?", set, kid).Delete(&trust.SQLData{})
+		if err != nil {
+			return err
+		}
+		return p.QueryWithNetwork(ctx).Where("sid=? AND kid=?", set, kid).Delete(&jwk.SQLData{})
+	})
+
 	return sqlcon.HandleError(err)
 }
 
